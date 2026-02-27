@@ -26,10 +26,11 @@
     console.log('[Block Algorithm] ' + msg);
   }
 
-  function loadSettings() {
+  function loadSettings(callback) {
     chrome.storage.sync.get(settings, (items) => {
       settings = items;
       log('Settings loaded: ' + JSON.stringify(settings));
+      if (callback) callback();
     });
   }
 
@@ -79,11 +80,40 @@
     badge.textContent = '沉迷时间: ' + minutes + 'm ' + seconds + 's';
   }
 
+  let overlayListenersAttached = false;
+  let overlayUpdateHandler = null;
+
   function hideOverlay() {
+    if (overlayListenersAttached && overlayUpdateHandler) {
+      window.removeEventListener('resize', overlayUpdateHandler);
+      window.removeEventListener('scroll', overlayUpdateHandler, true);
+      overlayListenersAttached = false;
+    }
     if (overlay && overlay.parentNode) {
       overlay.parentNode.removeChild(overlay);
     }
     overlay = null;
+  }
+
+  function getSearchRect() {
+    const selectors = [
+      'input[type="search"]',
+      'input[placeholder*="搜索"]',
+      'input[aria-label*="搜索"]',
+      'input[name="keyword"]',
+      'input#search-keyword',
+      'input[name="search"]',
+      '.search-input input'
+    ];
+    for (const selector of selectors) {
+      const el = document.querySelector(selector);
+      if (!el) continue;
+      const rect = el.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        return rect;
+      }
+    }
+    return null;
   }
 
   function showOverlay(blockDuration) {
@@ -94,7 +124,6 @@
 
       blockCount++;
       
-      // Create a truly modal overlay
       overlay = document.createElement('div');
       overlay.id = 'algorithm-block-overlay';
       overlay.style.cssText = [
@@ -103,7 +132,6 @@
         'left:0',
         'width:100%',
         'height:100%',
-        'background:rgba(0,0,0,0.95)',
         'color:white',
         'display:flex',
         'flex-direction:column',
@@ -111,9 +139,24 @@
         'align-items:center',
         'font-size:28px',
         'z-index:2147483647',
-        'pointer-events:all',
+        'pointer-events:none',
         'user-select:none'
       ].join(';');
+
+      const blockerTop = document.createElement('div');
+      const blockerLeft = document.createElement('div');
+      const blockerRight = document.createElement('div');
+      const blockerBottom = document.createElement('div');
+      const blockers = [blockerTop, blockerLeft, blockerRight, blockerBottom];
+      blockers.forEach((b) => {
+        b.style.cssText = [
+          'position:fixed',
+          'background:rgba(0,0,0,0.95)',
+          'pointer-events:auto',
+          'z-index:2147483646'
+        ].join(';');
+        overlay.appendChild(b);
+      });
 
       const title = document.createElement('div');
       title.textContent = '⚠️ 您可能沉迷于推荐算法';
@@ -132,14 +175,49 @@
       note.style.marginTop = '20px';
       note.textContent = '（第 ' + blockCount + ' 次拦截）';
 
-      overlay.appendChild(title);
-      overlay.appendChild(tip);
-      overlay.appendChild(note);
+      const message = document.createElement('div');
+      message.style.cssText = [
+        'position:relative',
+        'z-index:2147483647',
+        'pointer-events:none',
+        'text-align:center'
+      ].join(';');
+      message.appendChild(title);
+      message.appendChild(tip);
+      message.appendChild(note);
+      overlay.appendChild(message);
       document.body.appendChild(overlay);
 
-      // Disable scroll during block
-      const originalOverflow = document.documentElement.style.overflow;
-      document.documentElement.style.overflow = 'hidden';
+      const updateBlockers = () => {
+        const rect = getSearchRect();
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+        if (!rect) {
+          blockerTop.style.cssText += `;top:0;left:0;width:${w}px;height:${h}px`;
+          blockerLeft.style.cssText += ';width:0;height:0';
+          blockerRight.style.cssText += ';width:0;height:0';
+          blockerBottom.style.cssText += ';width:0;height:0';
+          return;
+        }
+        const pad = 6;
+        const left = Math.max(0, rect.left - pad);
+        const top = Math.max(0, rect.top - pad);
+        const right = Math.min(w, rect.right + pad);
+        const bottom = Math.min(h, rect.bottom + pad);
+
+        blockerTop.style.cssText += `;top:0;left:0;width:${w}px;height:${top}px`;
+        blockerBottom.style.cssText += `;top:${bottom}px;left:0;width:${w}px;height:${Math.max(0, h - bottom)}px`;
+        blockerLeft.style.cssText += `;top:${top}px;left:0;width:${left}px;height:${Math.max(0, bottom - top)}px`;
+        blockerRight.style.cssText += `;top:${top}px;left:${right}px;width:${Math.max(0, w - right)}px;height:${Math.max(0, bottom - top)}px`;
+      };
+
+      overlayUpdateHandler = updateBlockers;
+      updateBlockers();
+      if (!overlayListenersAttached) {
+        window.addEventListener('resize', overlayUpdateHandler);
+        window.addEventListener('scroll', overlayUpdateHandler, true);
+        overlayListenersAttached = true;
+      }
 
       log('黑屏已激活（第' + blockCount + '次），持续' + blockDuration + '秒');
 
@@ -150,8 +228,6 @@
         if (el) el.textContent = String(remain);
         if (remain <= 0) {
           clearInterval(interval);
-          // Restore scroll
-          document.documentElement.style.overflow = originalOverflow;
           hideOverlay();
           log('黑屏已解除（第' + blockCount + '次）');
           // Schedule next block
@@ -179,28 +255,19 @@
     }, waitTime);
   }
 
-  function onUserActivity() {
-    scheduleBlock();
-  }
-
   function init() {
     if (!isTargetHost()) return;
 
     log('脚本已加载: ' + location.href);
-    loadSettings();
+    loadSettings(() => {
+      // Schedule first block after settings are loaded
+      scheduleBlock();
+    });
 
     // Start timer
     setInterval(showTimerBadge, 500);
     showTimerBadge();
 
-    // Schedule first block
-    scheduleBlock();
-
-    window.addEventListener('scroll', onUserActivity, { passive: true });
-    window.addEventListener('mousemove', onUserActivity, { passive: true });
-    window.addEventListener('click', onUserActivity, { passive: true });
-    window.addEventListener('keydown', onUserActivity);
-    window.addEventListener('touchstart', onUserActivity, { passive: true });
   }
 
   // Handle messages from popup
