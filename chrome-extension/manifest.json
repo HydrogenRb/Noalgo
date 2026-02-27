@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "Block Algorithm Recommendations",
+  "version": "0.2.0",
+  "description": "Block recommendations on Xiaohongshu, Zhihu, and Bilibili",
+  "permissions": ["storage"],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.zhihu.com/*",
+        "https://www.bilibili.com/*",
+        "https://*.bilibili.com/*",
+        "https://www.xiaohongshu.com/*",
+        "http://www.zhihu.com/*",
+        "http://www.bilibili.com/*",
+        "http://*.bilibili.com/*",
+        "http://www.xiaohongshu.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_page": "options.html",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Block Algorithm Settings"
+  }
+}
