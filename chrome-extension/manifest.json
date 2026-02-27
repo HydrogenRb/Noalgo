@@ -7,14 +7,13 @@
   "content_scripts": [
     {
       "matches": [
-        "https://www.zhihu.com/*",
-        "https://www.bilibili.com/*",
-        "https://*.bilibili.com/*",
-        "https://www.xiaohongshu.com/*",
-        "http://www.zhihu.com/*",
-        "http://www.bilibili.com/*",
-        "http://*.bilibili.com/*",
-        "http://www.xiaohongshu.com/*"
+        "https://www.zhihu.com/",
+        "https://www.zhihu.com/?*",
+        "https://www.bilibili.com/",
+        "https://www.bilibili.com/?*",
+        "https://www.xiaohongshu.com/",
+        "https://www.xiaohongshu.com/?*",
+        "https://www.xiaohongshu.com/explore*"
       ],
       "js": ["content.js"],
       "run_at": "document_idle"

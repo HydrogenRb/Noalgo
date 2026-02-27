@@ -97,23 +97,48 @@
 
   function getSearchRect() {
     const selectors = [
+      // generic
       'input[type="search"]',
       'input[placeholder*="搜索"]',
       'input[aria-label*="搜索"]',
       'input[name="keyword"]',
       'input#search-keyword',
       'input[name="search"]',
-      '.search-input input'
+      '.search-input input',
+      '.search-box input',
+      '.search-bar input',
+      '.nav-search input',
+      '.nav-search-input',
+      // bilibili specific
+      '.bili-header .nav-search-input',
+      '.bili-header__bar .nav-search-input',
+      '.bili-search__input',
+      // zhihu specific
+      '.SearchBar-input',
+      '.SearchBar input',
+      // xiaohongshu specific
+      '.search-input input',
+      '.search-box input'
     ];
-    for (const selector of selectors) {
-      const el = document.querySelector(selector);
-      if (!el) continue;
+
+    const candidates = [];
+    selectors.forEach((selector) => {
+      document.querySelectorAll(selector).forEach((el) => candidates.push(el));
+    });
+
+    let bestRect = null;
+    let bestArea = 0;
+
+    for (const el of candidates) {
       const rect = el.getBoundingClientRect();
-      if (rect.width > 0 && rect.height > 0) {
-        return rect;
+      const area = rect.width * rect.height;
+      if (rect.width > 0 && rect.height > 0 && area > bestArea) {
+        bestArea = area;
+        bestRect = rect;
       }
     }
-    return null;
+
+    return bestRect;
   }
 
   function showOverlay(blockDuration) {
@@ -148,13 +173,14 @@
       const blockerRight = document.createElement('div');
       const blockerBottom = document.createElement('div');
       const blockers = [blockerTop, blockerLeft, blockerRight, blockerBottom];
+      const baseBlockerStyle = [
+        'position:fixed',
+        'background:rgba(0,0,0,0.95)',
+        'pointer-events:auto',
+        'z-index:2147483646'
+      ].join(';');
       blockers.forEach((b) => {
-        b.style.cssText = [
-          'position:fixed',
-          'background:rgba(0,0,0,0.95)',
-          'pointer-events:auto',
-          'z-index:2147483646'
-        ].join(';');
+        b.style.cssText = baseBlockerStyle;
         overlay.appendChild(b);
       });
 
@@ -193,10 +219,10 @@
         const w = window.innerWidth;
         const h = window.innerHeight;
         if (!rect) {
-          blockerTop.style.cssText += `;top:0;left:0;width:${w}px;height:${h}px`;
-          blockerLeft.style.cssText += ';width:0;height:0';
-          blockerRight.style.cssText += ';width:0;height:0';
-          blockerBottom.style.cssText += ';width:0;height:0';
+          blockerTop.style.cssText = baseBlockerStyle + `;top:0;left:0;width:${w}px;height:${h}px`;
+          blockerLeft.style.cssText = baseBlockerStyle + ';width:0;height:0';
+          blockerRight.style.cssText = baseBlockerStyle + ';width:0;height:0';
+          blockerBottom.style.cssText = baseBlockerStyle + ';width:0;height:0';
           return;
         }
         const pad = 6;
@@ -205,10 +231,10 @@
         const right = Math.min(w, rect.right + pad);
         const bottom = Math.min(h, rect.bottom + pad);
 
-        blockerTop.style.cssText += `;top:0;left:0;width:${w}px;height:${top}px`;
-        blockerBottom.style.cssText += `;top:${bottom}px;left:0;width:${w}px;height:${Math.max(0, h - bottom)}px`;
-        blockerLeft.style.cssText += `;top:${top}px;left:0;width:${left}px;height:${Math.max(0, bottom - top)}px`;
-        blockerRight.style.cssText += `;top:${top}px;left:${right}px;width:${Math.max(0, w - right)}px;height:${Math.max(0, bottom - top)}px`;
+        blockerTop.style.cssText = baseBlockerStyle + `;top:0;left:0;width:${w}px;height:${top}px`;
+        blockerBottom.style.cssText = baseBlockerStyle + `;top:${bottom}px;left:0;width:${w}px;height:${Math.max(0, h - bottom)}px`;
+        blockerLeft.style.cssText = baseBlockerStyle + `;top:${top}px;left:0;width:${left}px;height:${Math.max(0, bottom - top)}px`;
+        blockerRight.style.cssText = baseBlockerStyle + `;top:${top}px;left:${right}px;width:${Math.max(0, w - right)}px;height:${Math.max(0, bottom - top)}px`;
       };
 
       overlayUpdateHandler = updateBlockers;
